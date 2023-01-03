@@ -51,8 +51,9 @@ For temperature we can see that TMIN broadly follows a Normal distribution but a
 TMAX follows a non-standard distribution, with the tail to the left of the mode (approximately 18 Celsius) quickly decreasing in frequency compared to the right hand side.
 
 ```{r}
-hist(NOAA_data$TMAX, breaks = 50)
-hist(NOAA_data$TMIN, breaks = 50)
+TMAX_hist <-ggplot(aes(TMAX), data=NOAA_data) + geom_histogram() + dark_theme_bw()
+TMIN_hist <-ggplot(aes(TMIN), data=NOAA_data) + geom_histogram() + dark_theme_bw()
+TMAX_hist / TMIN_hist
 ```
 
 Fortunately, we can see that taking mean values, such as mean yearly maximum and minimum temperature in a given month results in a more normally distributed variable. Although it is still somewhat irregular it definitely better fits the assumptions for linear regression.

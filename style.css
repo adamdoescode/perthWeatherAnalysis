@@ -1,13 +1,33 @@
 body {
-    font-family: Helvetica, sans-serif;
+    font-family: Atkinson Hyperlegible, sans-serif;
+    background-color: rgb(80, 14, 14);
+    color: antiquewhite;
+}
+
+a {
+    color: rgb(187, 219, 166);
+}
+
+h1, h2 {
+    color: rgb(195, 189, 119);
 }
 
 .content {
     display: flex;
+    flex-direction: row;
+    align-items: baseline;
 }
 .sidebar {
-    flex: 1;
+    flex: 0.8;
+    padding: 1em;
 }
 .mainContent {
     flex: 3;
+    padding: 1em;
+}
+
+footer {
+    text-align: center;
+    font-style: italic;
+    font-size: 0.8em;
 }

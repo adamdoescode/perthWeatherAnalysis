@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Atkinson+Hyperlegible">
     <link rel="stylesheet" href="style.css">
     <title>Perth and surrounds weather analysis</title>
 </head>
@@ -11,44 +12,61 @@
     <div class="content">
         <!-- sidebar for links to notebooks and back to home page -->
         <div class="sidebar">
+            <h2>Page links</h2>
             <p><a href="analysis_notebooks/rainfall.html">Rainfall</a></p>
             <p><a href="analysis_notebooks/temperature.html">temperature</a></p>
             <p><a href="analysis_notebooks/rainfall.vs.temperature.html">rainfall.vs.temperature</a></p>
         </div>
         <!-- mainContent for body text -->
         <div class="mainContent">
-            <h1></h1>
+            <h1>⛈ Perth and surrounds rainfall and temperature analysis ☀</h1>
             <p>
                 Having recently moved to Perth from Newcastle I am intrigued by the different weather patterns here in Perth. 
                 The most striking feature is that rainfall in Perth is *seasonal* while in Newcastle it is mostly constant year round.
             </p>
             <p>
                 So I wanted to explore the nature of rainfall in Perth. Fortunately, it is easy to get data for any Australian weather 
-                site from the [Bureau of Meterology website](http://www.bom.gov.au/climate/data/?ref=ftr). Unfortunately, this no longer 
+                site from the <a href="http://www.bom.gov.au/climate/data/?ref=ftr">Bureau of Meterology website</a>. Unfortunately, this no longer 
                 works for some reason (the element you click to download data still has a download tag, but instead of data, it returns 
-                a zipped 403 page). Instead, I have used the GHCN data for Perth Airport (which comes from the BOM anyway) which you can 
-                access [here](https://www.ncdc.noaa.gov/cdo-web/datasets/GHCND/stations/GHCND:ASN00009021/detail).
+                a zipped 403 page). Instead, I have used the NOAA hosted GHCN data for Perth Airport (which comes from the BOM anyway) which you can 
+                access <a href="https://www.ncdc.noaa.gov/cdo-web/datasets/GHCND/stations/GHCND:ASN00009021/detail">here</a>.
             </p>
             <p>
                 Documentation for the column names can be found [here](https://www.ncei.noaa.gov/pub/data/cdo/documentation/GHCND_documentation.pdf). In brief they are:
             </p>
             <ol>
-                <li>STATION (17 characters) is the station identification code.</li>
-                <li>STATION_NAME (max 50 characters) is the name of the station.</li>
-                <li>GEOGRAPHIC_LOCATION (31 characters) is the latitude, longitude, and elevation above mean sea level.</li>
-                <li>DATE is the year of the record (4 digits) followed by month (2 digits) and day (2 digits).</li>
-                <li>PRCP = Precipitation (mm).</li>
-                <li>SNOW = Snowfall (mm).</li>
-                <li>SNWD = Snow depth (mm).</li>
-                <li>TMAX = Maximum temperature (Celsius).</li>
-                <li>TMIN = Minimum temperature (Celsius).</li>
+                <ul>STATION (17 characters) is the station identification code.</ul>
+                <ul>STATION_NAME (max 50 characters) is the name of the station.</ul>
+                <ul>GEOGRAPHIC_LOCATION (31 characters) is the latitude, longitude, and elevation above mean sea level.</ul>
+                <ul>DATE is the year of the record (4 digits) followed by month (2 digits) and day (2 digits).</ul>
+                <ul>PRCP = Precipitation (mm).</ul>
+                <ul>SNOW = Snowfall (mm).</ul>
+                <ul>SNWD = Snow depth (mm).</ul>
+                <ul>TMAX = Maximum temperature (Celsius).</ul>
+                <ul>TMIN = Minimum temperature (Celsius).</ul>
             </ol>
             <p>
                 The data I am using in this notebook is the daily rainfall totals and temperature for Perth Airport weather station. 
                 It has been continuously monitoring rainfall since May 1944! This allows us to get a good grasp on the seasonal rainfall 
                 patterns in Perth and also what the year to year trend looks like.
             </p>
+            <h2>Showcase graphs and summary</h2>
+            <p>Probably the most striking feature of rain in Perth is just how seasonal it is. Looking at our first graph below we can see 
+                any given day in January has less than 10% chance of any rain while a given day in July has over 50% chance of any rain! 
+                The month to month change is dramatic, with the change in rainfall chance shifting rapidly in autumn and spring.
+            </p>
+            <p>
+                While summers are incredibly hot, and the UV index is dangerous, summer is a great time to plan outdoor activities that 
+                would be otherwise ruined by rain. In contrast, expect the opposite in winter.
+            </p>
+            <img src="" alt="">
+            <h2>Analyses notebooks</h2>
+            <h2>Other weather stations used</h2>
+            <p>For the all stations data I have used a few more stations.</p>
         </div>
     </div>
 </body>
+<footer>
+    Made by Adam Graham using data from BOM and NOAA
+</footer>
 </html>
