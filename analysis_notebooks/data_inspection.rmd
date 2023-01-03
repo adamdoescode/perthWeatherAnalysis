@@ -1,0 +1,65 @@
+
+This notebook is just for quick inspection and dirty reformatting of data to make it more usable.
+
+```{r}
+suppressMessages(library(data.table))
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggdark))
+suppressMessages(library(patchwork))
+suppressMessages(library(weathermetrics))
+```
+
+For NOAA_other_stations_1, Rainfall is in inches, temperature in F. The other one is in metric already.
+
+Convert to Metric:
+```{r}
+NOAA_other_stations_1_freedomUnits <- fread("../data/3186152.csv")
+NOAA_other_stations_1 <- NOAA_other_stations_1_freedomUnits %>% 
+  #drop extra cols
+  select(!c("DAPR","DATN","DATX","DWPR","MDPR","MDTN","MDTX","TAVG")) %>% 
+  mutate(
+    PRCP = PRCP*25.4,
+    TMAX = fahrenheit.to.celsius(TMAX),
+    TMIN = fahrenheit.to.celsius(TMIN)
+  )
+NOAA_other_stations_2 <- fread("../data/3186197.csv") %>% 
+  select(!c("DAPR","DATN","DATX","DWPR","MDPR","MDTN","MDTX"))
+```
+
+```{r}
+NOAA_other_stations_all <- rbind(NOAA_other_stations_1,NOAA_other_stations_2)
+```
+
+Sanity check rainfall between stations; they all look good :)
+
+```{r}
+NOAA_other_stations_all %>% 
+  group_by(NAME) %>% 
+  summarise(
+    mean_rainfall = mean(PRCP, na.rm = T),
+    mean_TMIN = mean(TMIN, na.rm = T),
+    mean_TMAX = mean(TMAX, na.rm = T),
+  )
+```
+
+
+
+
+```{r}
+NOAA_other_stations_1$NAME %>% unique()
+```
+
+```{r}
+NOAA_other_stations_1 %>% 
+  ggplot(aes(LONGITUDE, LATITUDE)) +
+  geom_point()
+```
+
+```{r}
+NOAA_other_stations_1
+```
+
+```{r}
+
+```
+
