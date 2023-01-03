@@ -1,0 +1,138 @@
+
+---
+title: "Perth temperature analysis"
+output:
+  html_document:
+    toc: yes
+    toc_depth: '2'
+    toc_float:
+      collapsed: no
+    theme: darkly
+    highlight: tango
+    df_print: paged
+    code_folding: hide
+---
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+## import and clean data
+
+Import data and add some useful columns to our rain dataframe.
+
+```{r}
+NOAA_data <- fread("../data/3184544.csv")
+#filter for usability
+#turns out the data attributes are useless lol
+NOAA_data <- NOAA_data %>% select(!ends_with("_ATTRIBUTES"))
+#add month and day cols for easier group-by summaries later
+NOAA_data <- NOAA_data %>% 
+  mutate(
+    Year = format(DATE, "%Y") %>% as.numeric(),
+    Month = month(DATE),
+    Day = format(DATE, "%d") %>% as.numeric(),
+    #bool for any rain
+    did_rain = PRCP > 0,
+    Month_name = month.name[Month] %>% fct_relevel(month.name)
+  )
+NOAA_data %>% head(2)
+```
+
+## data properties
+
+We should take a quick look at how the temperature min and max variables are distributed.
+
+For temperature we can see that TMIN broadly follows a Normal distribution but appears to have a non standard shape and a slight skew.
+
+TMAX follows a non-standard distribution, with the tail to the left of the mode (approximately 18 Celsius) quickly decreasing in frequency compared to the right hand side.
+
+```{r}
+hist(NOAA_data$TMAX, breaks = 50)
+hist(NOAA_data$TMIN, breaks = 50)
+```
+
+Fortunately, we can see that taking mean values, such as mean yearly maximum and minimum temperature in a given month results in a more normally distributed variable. Although it is still somewhat irregular it definitely better fits the assumptions for linear regression.
+
+```{r fig.height=10, fig.width=7}
+TMAX_histogram <- NOAA_data %>% 
+  group_by(Month_name, Year) %>% 
+  summarise(meanTMAX = mean(TMAX, na.rm = T)) %>% 
+  ggplot(aes(meanTMAX, after_stat(density))) +
+  geom_histogram() +
+  geom_density() +
+  facet_wrap(vars(Month_name), scales="free") +
+  dark_theme_bw() +
+ggtitle("Histograms of mean maximum temperature per year for each month")
+TMIN_histogram <- NOAA_data %>% 
+  group_by(Month_name, Year) %>% 
+  summarise(meanTMIN = mean(TMIN, na.rm = T)) %>% 
+  ggplot(aes(meanTMIN, after_stat(density))) +
+  geom_histogram() +
+  geom_density() +
+  facet_wrap(vars(Month_name), scales="free") +
+  dark_theme_bw() +
+  ggtitle("Histograms of mean minimum temperature per year for each month")
+
+TMAX_histogram / TMIN_histogram
+```
+
+## Yearly trends
+
+We can first have a look at the yearly trends visually. Not surprisingly we see that both minimum and maximum temperatures have been increasing. Visually, we can see the trend lines are broadly similar. We can also see that the distribution of residuals (spread around the line) is broadly consistent so we can have some faith in the regression lines here.
+
+```{r}
+temperature.yearly.avg <- NOAA_data %>% 
+  group_by(Year) %>% 
+  summarise(
+    meanTMAX = mean(TMAX, na.rm = T),
+    maxTMAX = max(TMAX, na.rm = T),
+    minTMAX = min(TMAX, na.rm = T),
+    meanTMIN = mean(TMIN, na.rm = T),
+    maxTMIN = max(TMIN, na.rm = T),
+    minTMIN = min(TMIN, na.rm = T),
+  )
+
+temperature.yearly.avg %>% 
+  pivot_longer(cols=c(meanTMIN, meanTMAX), names_to = "statistic", values_to = "temperature") %>% 
+  ggplot(aes(Year, temperature, colour = statistic)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  dark_theme_bw() +
+  ggtitle("Yearly average min and max temperatures for Perth Airport (1944-2022)")
+temperature.yearly.avg %>% 
+  pivot_longer(cols=c(maxTMIN, maxTMAX), names_to = "statistic", values_to = "temperature") %>% 
+  ggplot(aes(Year, temperature, colour = statistic)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  dark_theme_bw() +
+  ggtitle("Yearly max min and max temperatures for Perth Airport (1944-2022)")
+```
+
+We can also inspect the relationship between Year and Temperature using linear regression. As we can see, there is a small but statistically robust increase in temperature each year. The model 
+
+Interestingly since the maximum temperature is increasing faster than the minimum temperature, we can also see that the *range* of temperatures may be increasing as well. But a linear model is only nominally significant, so we should be cautious interpreting this as an increase in the range of temperatures.
+
+```{r}
+lm(meanTMAX ~ Year, data = temperature.yearly.avg) %>% 
+  summary %>% broom::tidy()
+lm(meanTMIN ~ Year, data = temperature.yearly.avg) %>% 
+  summary %>% broom::tidy()
+lm(meanTMAX-meanTMIN ~ Year, data = temperature.yearly.avg) %>% 
+  summary %>% broom::tidy()
+```
+
+
+Do min and max temperature correlate? Yes, but this is naturally confounded as all three variables, Year, TMIN, and TMAX, are all correlated with each other.
+
+```{r}
+temperature.yearly.avg %>% 
+  ggplot(aes(meanTMIN, meanTMAX, colour = Year)) + 
+  geom_point() +
+  dark_theme_bw() +
+  geom_smooth(method="lm")
+
+lm(meanTMIN ~ meanTMAX*Year, data = temperature.yearly.avg) %>% 
+  summary %>% broom::tidy()
+```
+
+

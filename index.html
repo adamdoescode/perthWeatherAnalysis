@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Perth and surrounds weather analysis</title>
+</head>
+<body>
+    <div class="content">
+        <!-- sidebar for links to notebooks and back to home page -->
+        <div class="sidebar"></div>
+        <!-- mainContent for body text -->
+        <div class="mainContent">
+            <h1></h1>
+            <p>
+                Having recently moved to Perth from Newcastle I am intrigued by the different weather patterns here in Perth. 
+                The most striking feature is that rainfall in Perth is *seasonal* while in Newcastle it is mostly constant year round.
+            </p>
+            <p>
+                So I wanted to explore the nature of rainfall in Perth. Fortunately, it is easy to get data for any Australian weather 
+                site from the [Bureau of Meterology website](http://www.bom.gov.au/climate/data/?ref=ftr). Unfortunately, this no longer 
+                works for some reason (the element you click to download data still has a download tag, but instead of data, it returns 
+                a zipped 403 page). Instead, I have used the GHCN data for Perth Airport (which comes from the BOM anyway) which you can 
+                access [here](https://www.ncdc.noaa.gov/cdo-web/datasets/GHCND/stations/GHCND:ASN00009021/detail).
+            </p>
+            <p>
+                Documentation for the column names can be found [here](https://www.ncei.noaa.gov/pub/data/cdo/documentation/GHCND_documentation.pdf). In brief they are:
+            </p>
+            <ol>
+                <li>STATION (17 characters) is the station identification code.</li>
+                <li>STATION_NAME (max 50 characters) is the name of the station.</li>
+                <li>GEOGRAPHIC_LOCATION (31 characters) is the latitude, longitude, and elevation above mean sea level.</li>
+                <li>DATE is the year of the record (4 digits) followed by month (2 digits) and day (2 digits).</li>
+                <li>PRCP = Precipitation (mm).</li>
+                <li>SNOW = Snowfall (mm).</li>
+                <li>SNWD = Snow depth (mm).</li>
+                <li>TMAX = Maximum temperature (Celsius).</li>
+                <li>TMIN = Minimum temperature (Celsius).</li>
+            </ol>
+            <p>
+                The data I am using in this notebook is the daily rainfall totals and temperature for Perth Airport weather station. 
+                It has been continuously monitoring rainfall since May 1944! This allows us to get a good grasp on the seasonal rainfall 
+                patterns in Perth and also what the year to year trend looks like.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

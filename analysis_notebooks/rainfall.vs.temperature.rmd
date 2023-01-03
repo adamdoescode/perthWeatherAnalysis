@@ -1,6 +1,6 @@
 
 ---
-title: "Perth multiple station analysis"
+title: "Perth rainfall and temperature relationship"
 output:
   html_document:
     toc: yes
@@ -12,17 +12,6 @@ output:
     df_print: paged
     code_folding: hide
 ---
-
-Code setup:
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
 ```
-
-```{r}
-suppressMessages(library(data.table))
-suppressMessages(library(tidyverse))
-suppressMessages(library(ggdark))
-suppressMessages(library(patchwork))
-require(gridExtra)
-```
-
