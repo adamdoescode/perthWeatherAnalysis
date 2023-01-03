@@ -1,0 +1,92 @@
+
+A notebook for generating images. May break easily.
+
+```{r}
+suppressMessages(library(data.table))
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggdark))
+suppressMessages(library(patchwork))
+NOAA_data <- fread("../data/3184544.csv")
+#filter for usability
+#turns out the data attributes are useless lol
+NOAA_data <- NOAA_data %>% select(!ends_with("_ATTRIBUTES"))
+#add month and day cols for easier group-by summaries later
+NOAA_data <- NOAA_data %>% 
+  mutate(
+    Year = format(DATE, "%Y") %>% as.numeric(),
+    Month = month(DATE),
+    Day = format(DATE, "%d") %>% as.numeric(),
+    #bool for any rain
+    did_rain = PRCP > 0,
+    Month_name = month.name[Month] %>% fct_relevel(month.name)
+  )
+
+suppressMessages(library(weathermetrics))
+PER_airport <- fread("../data/3184544.csv")
+#filter for usability
+#turns out the data attributes are useless lol
+PER_airport <- PER_airport %>% select(!ends_with("_ATTRIBUTES"))
+
+NOAA_other_stations_1_freedomUnits <- fread("../data/3186152.csv")
+NOAA_other_stations_1 <- NOAA_other_stations_1_freedomUnits %>% 
+  #drop extra cols
+  select(!c("DAPR","DATN","DATX","DWPR","MDPR","MDTN","MDTX","TAVG")) %>% 
+  mutate(
+    PRCP = PRCP*25.4,
+    TMAX = fahrenheit.to.celsius(TMAX),
+    TMIN = fahrenheit.to.celsius(TMIN)
+  )
+NOAA_other_stations_2 <- fread("../data/3186197.csv") %>% 
+  select(!c("DAPR","DATN","DATX","DWPR","MDPR","MDTN","MDTX"))
+
+NOAA_other_stations_all <- rbind(NOAA_other_stations_1,NOAA_other_stations_2)
+PER_airport <- PER_airport %>% select(!c("TAVG","SNWD"))
+NOAA_other_stations_all <- rbind(NOAA_other_stations_all, PER_airport)
+
+NOAA_other_stations_all <- NOAA_other_stations_all %>% 
+  mutate(
+    Year = format(DATE, "%Y") %>% as.numeric(),
+    Month = month(DATE),
+    Day = format(DATE, "%d") %>% as.numeric(),
+    #bool for any rain
+    did_rain = PRCP > 0,
+    Month_name = month.name[Month] %>% fct_relevel(month.name)
+  )
+```
+
+
+## Should you plan to go outside? Percent chance of any rain for Perth Airport
+
+Probably the most striking feature of rain in Perth is just how seasonal it is. Looking at our first graph below we can see any given day in January has less than 10% chance of any rain while a given day in July has over 50% chance of any rain! The month to month change is dramatic, with the change in rainfall chance shifting rapidly in autumn and spring.
+
+While summers are incredibly hot, and the UV index is dangerous, summer is a great time to plan outdoor activities that would be otherwise ruined by rain. In contrast, expect the opposite in winter.
+
+```{r}
+rainy_days <- NOAA_data %>% 
+	group_by(Month, Day) %>% 
+	summarise(
+	  number_of_rainy_days = sum(did_rain), days_observed = n()
+	) %>% 
+	mutate(proportion_rained = number_of_rainy_days/days_observed)
+
+rainy_days$index <- 1:length(rainy_days$Day)
+rainy_days <- rainy_days %>% 
+  mutate(date_str = str_c(Day, Month, sep = "/"))
+custom_breaks = c(
+	1,32,32+29,32+29+31,92+30,153,153+30,214,245,275,306,336,366
+)
+rainy_days %>% 
+	ggplot(aes(index, proportion_rained*100)) +
+	geom_point() +
+	geom_smooth(span=0.5) +
+	scale_y_continuous(breaks = seq(0,1,0.1)*100) +
+	ylab("Percentage of days with any rain") +
+	xlab("Date") +
+	scale_x_continuous(
+	  breaks = custom_breaks, labels = rainy_days$date_str[custom_breaks]
+	) +
+	ggtitle("Should you plan to go outside?\nPercent chance of any rain for Perth Airport") +
+	dark_theme_classic()
+ggsave("Percent chance of any rain for Perth Airport.png")
+```
+
