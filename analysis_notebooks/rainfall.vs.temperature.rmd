@@ -15,3 +15,31 @@ output:
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
 ```
+
+## import and clean data
+
+Import data and add some useful columns to our rain dataframe.
+
+```{r}
+suppressMessages(library(data.table))
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggdark))
+suppressMessages(library(patchwork))
+NOAA_data <- fread("../data/3184544.csv")
+#filter for usability
+#turns out the data attributes are useless lol
+NOAA_data <- NOAA_data %>% select(!ends_with("_ATTRIBUTES"))
+#add month and day cols for easier group-by summaries later
+NOAA_data <- NOAA_data %>% 
+  mutate(
+    Year = format(DATE, "%Y") %>% as.numeric(),
+    Month = month(DATE),
+    Day = format(DATE, "%d") %>% as.numeric(),
+    #bool for any rain
+    did_rain = PRCP > 0,
+    Month_name = month.name[Month] %>% fct_relevel(month.name)
+  )
+NOAA_data %>% head(2)
+```
+
+## data properties

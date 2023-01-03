@@ -21,6 +21,10 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 Import data and add some useful columns to our rain dataframe.
 
 ```{r}
+suppressMessages(library(data.table))
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggdark))
+suppressMessages(library(patchwork))
 NOAA_data <- fread("../data/3184544.csv")
 #filter for usability
 #turns out the data attributes are useless lol
