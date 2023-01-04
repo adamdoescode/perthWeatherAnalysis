@@ -4,6 +4,10 @@ body {
     color: antiquewhite;
 }
 
+img {
+    width: 800px;
+}
+
 a {
     color: rgb(187, 219, 166);
 }
