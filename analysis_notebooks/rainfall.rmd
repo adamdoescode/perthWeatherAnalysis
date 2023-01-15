@@ -342,30 +342,17 @@ NOAA_data %>%
     dark_theme_bw()
 ```
 
+Selective cumsum for days without rain calculation?
+
+Solution here inspired from [here](https://stackoverflow.com/questions/54463950/r-count-consecutive-days-with-condition):
+```{r}
+NOAA_data <- NOAA_data %>% 
+    group_by(ID = rleid(PRCP)) %>% 
+    mutate(daysNoRain = ifelse(PRCP == 0, row_number(), row_number()-1))
+```
+
 ```{r}
 
-daysWithoutRain = function(PRCP) {
-    counter = 0
-    lengthCounter = 0
-    outputVector = c()
-    for (day in PRCP) {
-        lengthCounter = lengthCounter + 1
-        if (length(PRCP) == lengthCounter) {
-            outputVector = c(outputVector, counter) 
-        } else if (day != 0) {
-            outputVector = c(outputVector, counter)
-            counter = 0
-        } else {
-            counter = counter + 1
-        }
-    }
-    return(outputVector)
-}
-
-NOAA_data %>% 
-    filter(Year == 2021) %>% 
-    pull(PRCP) %>% 
-    daysWithoutRain(.)
 ```
 
 
