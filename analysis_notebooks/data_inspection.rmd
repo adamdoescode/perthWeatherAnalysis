@@ -63,3 +63,56 @@ NOAA_other_stations_1
 
 ```
 
+
+
+
+
+
+
+
+
+```{r}
+PER_airport <- fread("../data/3184544.csv")
+#filter for usability
+#turns out the data attributes are useless lol
+PER_airport <- PER_airport %>% select(!ends_with("_ATTRIBUTES"))
+
+NOAA_other_stations_1_freedomUnits <- fread("../data/3186152.csv")
+NOAA_other_stations_1 <- NOAA_other_stations_1_freedomUnits %>% 
+  #drop extra cols
+  select(!c("DAPR","DATN","DATX","DWPR","MDPR","MDTN","MDTX","TAVG")) %>% 
+  mutate(
+    PRCP = PRCP*25.4,
+    TMAX = fahrenheit.to.celsius(TMAX),
+    TMIN = fahrenheit.to.celsius(TMIN)
+  )
+NOAA_other_stations_2 <- fread("../data/3186197.csv") %>% 
+  select(!c("DAPR","DATN","DATX","DWPR","MDPR","MDTN","MDTX"))
+
+NOAA_other_stations_all <- rbind(NOAA_other_stations_1,NOAA_other_stations_2)
+PER_airport <- PER_airport %>% select(!c("TAVG","SNWD"))
+NOAA_other_stations_all <- rbind(NOAA_other_stations_all, PER_airport)
+
+NOAA_other_stations_all <- NOAA_other_stations_all %>% 
+  mutate(
+    Year = format(DATE, "%Y") %>% as.numeric(),
+    Month = month(DATE),
+    Day = format(DATE, "%d") %>% as.numeric(),
+    #bool for any rain
+    did_rain = PRCP > 0,
+    Month_name = month.name[Month] %>% fct_relevel(month.name)
+  )
+
+write_csv(NOAA_other_stations_all, "../data/NOAA_all_stations_metric.csv")
+```
+
+
+
+
+
+
+
+
+
+
+

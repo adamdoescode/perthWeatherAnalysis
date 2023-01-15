@@ -89,13 +89,103 @@ NOAA_other_stations_all %>% summary
 
 We want to know coverage for rainfall and temperature for each station.
 
-```{r}
-NOAA_other_stations_all %>% 
+What about specific for each kind of data?
+
+For where data is available, we have complete records of rainfall. But temperature has large gaps for several stations.
+
+```{r, fig.width=12, fig.height=12}
+dates_covered_by_stations <- NOAA_other_stations_all %>% 
   group_by(NAME) %>% 
   summarise(
     minDate = min(DATE),
     maxDate = max(DATE),
   )
+dates_covered <- dates_covered_by_stations %>% 
+  ggplot(aes(NAME, ymin=minDate, ymax=maxDate)) +
+  geom_linerange() +
+  dark_theme_bw() +
+  theme(axis.text.x=element_text(angle=45,hjust=1)) +
+  xlab("Station Name") + ylab("Date range (Years)") +
+  ggtitle("Date range available for each station")
+
+dates_covered_by_variable <- NOAA_other_stations_all %>% 
+  pivot_longer(c(TMAX,TMIN,PRCP), names_to = "measurement") %>%
+  # filter(NAME == "ROTTNEST ISLAND LIGHTHOUSE, AS") %>% 
+  ggplot(aes(measurement, DATE, colour=!is.na(value))) +
+  geom_point() +
+  dark_theme_bw() +
+  facet_wrap(vars(NAME)) +
+  ggtitle("Dates where values are available for each station")
+
+dates_covered + dates_covered_by_variable
 ```
+
+We can do some quick checks using the non-filtered data. But we will need to use filtered data to ensure robust modelling later.
+
+```{r, fig.width=10}
+yearly_statistics <- NOAA_other_stations_all %>% 
+  group_by(NAME, Year) %>% 
+  summarise(
+    meanRainfall = mean(PRCP, na.rm = T),
+    totalRainfall = sum(PRCP, na.rm = T),
+    meanMaximumTemperature = mean(TMAX),
+    meanMinimumTemperature = mean(TMIN),
+  ) 
+
+yearly_statistics %>% 
+  ggplot(aes(Year, totalRainfall, colour = NAME)) +
+  geom_point(alpha=0.5) +
+  geom_smooth(method="lm", se = F) +
+  dark_theme_bw()
+```
+
+We can see that the two stations on Rottnest are showing roughly similar trends but because of the way the data is split the regression trends predict opposite directions of effect for total rainfall. I think it would be best to include these as a single dataset and then use the station name as a factor variable to account for the difference between each station.
+
+```{r, fig.width=10}
+yearly_statistics %>% 
+  filter(str_detect(NAME, "ROTTNEST")) %>% 
+  ggplot(aes(Year, totalRainfall, colour = NAME)) +
+  geom_point(alpha=0.5) +
+  geom_smooth(method="lm", se = F) +
+  dark_theme_bw() +
+  ggtitle("total rainfall each year for Rottnest Island from both stations")
+```
+
+```{r}
+Rotto_yearly_statistics <- NOAA_other_stations_all %>% 
+  group_by(NAME, Year) %>%
+  summarise(
+    totalRainfall = sum(PRCP, na.rm = F),
+    naRainfallCount = sum(is.na(PRCP)),
+  ) %>% 
+  filter(str_detect(NAME, "ROTTNEST"), Year >= 1907)
+
+Rotto_yearly_statistics_fewNa <- Rotto_yearly_statistics %>% 
+  filter(naRainfallCount < 10)
+
+Rotto_yearly_statistics %>% 
+  ggplot(aes(Year, totalRainfall, colour=naRainfallCount)) +
+  geom_point() +
+  # geom_smooth(method="lm") +
+  dark_theme_bw()
+```
+
+After accounting for the station name as an interaction term we can see that the resulting 
+
+```{r}
+Rotto_yearly_statistics %>% 
+  ggplot(aes(Year, totalRainfall, colour = NAME)) +
+  geom_point(alpha=0.5) +
+  geom_smooth(method="lm", se = F) +
+  dark_theme_bw() +
+  ggtitle("total rainfall each year for Rottnest Island from both stations")
+
+model_rotto_rainfall_1 <- lm(totalRainfall ~ Year * NAME, data=Rotto_yearly_statistics_fewNa)
+summary(model_rotto_rainfall_1)
+```
+
+
+
+
 
 
