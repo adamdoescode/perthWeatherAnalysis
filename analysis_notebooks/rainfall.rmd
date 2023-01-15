@@ -342,19 +342,46 @@ NOAA_data %>%
     dark_theme_bw()
 ```
 
-Selective cumsum for days without rain calculation?
+Selective cumsum for days without rain 🌧️ ?
 
 Solution here inspired from [here](https://stackoverflow.com/questions/54463950/r-count-consecutive-days-with-condition):
 ```{r}
 NOAA_data <- NOAA_data %>% 
     group_by(ID = rleid(PRCP)) %>% 
     mutate(daysNoRain = ifelse(PRCP == 0, row_number(), row_number()-1))
+NOAA_data$daysNoRain %>% summary
 ```
 
 ```{r}
-
+NOAA_data %>% 
+    ggplot(aes(daysNoRain, after_stat(density))) +
+    geom_histogram(bins = 50) +
+    geom_density() +
+    dark_theme_bw()
 ```
 
+The 122 days of no rain?! Apparently the summer of 2010. From the 21st of November until the 23rd of March. Wow.
+```{r}
+#get max days no rain record (122)
+maxDaysNoRain = NOAA_data$daysNoRain %>% max(., na.rm = T)
+#get the date of the day with 122 days of no rain i.e the last one
+lastDroughtDay = NOAA_data[which(NOAA_data$daysNoRain==maxDaysNoRain),]$DATE %>% as.Date()
+
+#filter and show the dates during the longest no rain period
+NOAA_data %>% 
+    mutate(DATE = as.Date(DATE)) %>% 
+    filter(DATE < lastDroughtDay+1) %>% 
+    filter(DATE > (lastDroughtDay-123))
+```
+
+```{r}
+#quick plot of no rain streaks vs temperature
+NOAA_data %>% 
+    ggplot(aes(daysNoRain,TMAX)) +
+    geom_point() +
+    dark_theme_bw()
+#TODO make this correlation but center days to july 1st i.e abs(day - july_1st)
+```
 
 
 
