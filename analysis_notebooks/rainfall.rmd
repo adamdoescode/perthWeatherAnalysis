@@ -4,7 +4,7 @@ title: "Perth rainfall analysis"
 output:
   html_document:
     toc: yes
-    toc_depth: '2'
+    toc_depth: '4'
     toc_float:
       collapsed: no
     theme: darkly
@@ -375,7 +375,7 @@ august <- rainfall_totals_bigger_month %>%
 
 
 
-# No-rain streaks
+## No-rain streaks
 
 Selective cumsum for days without rain 🌧? This works!
 
