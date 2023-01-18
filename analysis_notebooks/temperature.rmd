@@ -51,8 +51,10 @@ For temperature we can see that TMIN broadly follows a Normal distribution but a
 TMAX follows a non-standard distribution, with the tail to the left of the mode (approximately 18 Celsius) quickly decreasing in frequency compared to the right hand side.
 
 ```{r}
+#quick histograms using ggplot so we can easily apply a dark theme
 TMAX_hist <-ggplot(aes(TMAX), data=NOAA_data) + geom_histogram() + dark_theme_bw()
 TMIN_hist <-ggplot(aes(TMIN), data=NOAA_data) + geom_histogram() + dark_theme_bw()
+#plot using patchwork
 TMAX_hist / TMIN_hist
 ```
 
@@ -67,7 +69,7 @@ TMAX_histogram <- NOAA_data %>%
   geom_density() +
   facet_wrap(vars(Month_name), scales="free") +
   dark_theme_bw() +
-ggtitle("Histograms of mean maximum temperature per year for each month")
+ggtitle("Mean maximum temperature per year")
 TMIN_histogram <- NOAA_data %>% 
   group_by(Month_name, Year) %>% 
   summarise(meanTMIN = mean(TMIN, na.rm = T)) %>% 
@@ -76,8 +78,8 @@ TMIN_histogram <- NOAA_data %>%
   geom_density() +
   facet_wrap(vars(Month_name), scales="free") +
   dark_theme_bw() +
-  ggtitle("Histograms of mean minimum temperature per year for each month")
-
+  ggtitle("Mean minimum temperature per year")
+#plot using patchwork
 TMAX_histogram / TMIN_histogram
 ```
 
@@ -86,6 +88,7 @@ TMAX_histogram / TMIN_histogram
 We can first have a look at the yearly trends visually. Not surprisingly we see that both minimum and maximum temperatures have been increasing. Visually, we can see the trend lines are broadly similar. We can also see that the distribution of residuals (spread around the line) is broadly consistent so we can have some faith in the regression lines here.
 
 ```{r}
+#groupby Year and then calculate statistics
 temperature.yearly.avg <- NOAA_data %>% 
   group_by(Year) %>% 
   summarise(
@@ -96,21 +99,15 @@ temperature.yearly.avg <- NOAA_data %>%
     maxTMIN = max(TMIN, na.rm = T),
     minTMIN = min(TMIN, na.rm = T),
   )
-
+#plot mean min and max temp for each year
 temperature.yearly.avg %>% 
   pivot_longer(cols=c(meanTMIN, meanTMAX), names_to = "statistic", values_to = "temperature") %>% 
   ggplot(aes(Year, temperature, colour = statistic)) +
   geom_point() +
+  #OLS line for min and max
   geom_smooth(method = "lm") +
   dark_theme_bw() +
   ggtitle("Yearly average min and max temperatures for Perth Airport (1944-2022)")
-temperature.yearly.avg %>% 
-  pivot_longer(cols=c(maxTMIN, maxTMAX), names_to = "statistic", values_to = "temperature") %>% 
-  ggplot(aes(Year, temperature, colour = statistic)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  dark_theme_bw() +
-  ggtitle("Yearly max min and max temperatures for Perth Airport (1944-2022)")
 ```
 
 We can also inspect the relationship between Year and Temperature using linear regression. As we can see, there is a small but statistically robust increase in temperature each year. The model 
@@ -118,26 +115,107 @@ We can also inspect the relationship between Year and Temperature using linear r
 Interestingly since the maximum temperature is increasing faster than the minimum temperature, we can also see that the *range* of temperatures may be increasing as well. But a linear model is only nominally significant, so we should be cautious interpreting this as an increase in the range of temperatures.
 
 ```{r}
-lm(meanTMAX ~ Year, data = temperature.yearly.avg) %>% 
-  summary %>% broom::tidy()
-lm(meanTMIN ~ Year, data = temperature.yearly.avg) %>% 
-  summary %>% broom::tidy()
-lm(meanTMAX-meanTMIN ~ Year, data = temperature.yearly.avg) %>% 
-  summary %>% broom::tidy()
+# run models for TMAX and TMIN and the difference between them
+# rbind each table together
+rbind(
+  #max temperature by uear
+  lm(meanTMAX ~ Year, data = temperature.yearly.avg) %>% 
+    summary %>% broom::tidy() %>%
+    #add a model variable that identifies the model used
+    mutate(model = "meanTMAX"),
+  #min temperature by uear
+  lm(meanTMIN ~ Year, data = temperature.yearly.avg) %>% 
+    summary %>% broom::tidy() %>%
+    mutate(model = "meanTMIN"),
+  #temperature range vs year
+  lm(meanTMAX-meanTMIN ~ Year, data = temperature.yearly.avg) %>% 
+    summary %>% broom::tidy() %>%
+    mutate(model = "meanTMAX-meanTMIN")
+) %>% 
+  #adjust order of columns to my liking
+  select(c("term","model","estimate","std.error","statistic","p.value"))
 ```
 
-
-Do min and max temperature correlate? Yes, but this is naturally confounded as all three variables, Year, TMIN, and TMAX, are all correlated with each other.
+Do min and max temperature correlate? Yes, but this is naturally confounded as all three variables, Year, TMIN, and TMAX, are all correlated with each other. Notably, since we have established that the *range* of temperature is increasing, we can tentatively suggest that TMAX is increasing faster than TMIN.
 
 ```{r}
+#simple scatter plot of meanTMIN and meanTMAX
+#a reminder that temperature.yearly.avg is one year per row 
+#with mean max and min temp stats
 temperature.yearly.avg %>% 
   ggplot(aes(meanTMIN, meanTMAX, colour = Year)) + 
   geom_point() +
   dark_theme_bw() +
   geom_smooth(method="lm")
+```
 
-lm(meanTMIN ~ meanTMAX*Year, data = temperature.yearly.avg) %>% 
-  summary %>% broom::tidy()
+## Temperature extremes
+
+Extremely hot days are interesting for 2 reasons:
+1. they are apparent to the people who live in a location
+2. they are catastrophic to wildlife and agriculture
+
+As Perth warms up, we can expect to see more extreme temperatures. Indeed, we can visualise the days over 35 celsius and see that the number of days over 35C at Perth Airport is increasing each year.
+
+```{r}
+daysOver35 <- NOAA_data %>% 
+  filter(Year > 1944) %>% 
+  #drop empty TMAX cols
+  drop_na(TMAX) %>% 
+  group_by(Year) %>% 
+  count(daysOver35 = TMAX > 35) %>% 
+  #pivot wider so that under and over 35 on the same row
+  pivot_wider(id_cols=Year, names_from = daysOver35, values_from = n) %>% 
+  #rename new cols to informative names
+  rename("under35" = "FALSE", "over35" = "TRUE") %>% 
+  #where over35 is NaN there are no days over 35
+  mutate(over35 = replace_na(over35, 0)) %>% 
+  #get proportion
+  mutate(proportion_over35 = over35/(under35 + over35))
+daysOver35 %>%  ggplot(aes(Year, proportion_over35)) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  dark_theme_bw() +
+  ggtitle("Proportion of days over 35C each year at Perth Airport") +
+  ylab("Proportion of days over 35C")
+#run a simple lm for this
+broom::tidy(summary(lm(proportion_over35 ~ Year, data = daysOver35)))
+```
+
+While we might expect this might translate to more days in a row over 35, the trend for this is weak, although it is nominally significant.
+
+```{r}
+#get streaks of days over 35C
+NOAA_data <- NOAA_data %>% 
+    mutate(daysOver35 = TMAX > 35) %>% 
+    #we use data.table::rleid to get group IDs for each streak
+    group_by(IDstreakDaysOver35 = rleid(daysOver35)) %>% 
+    #we use dplyr::mutate and base::ifelse to calculate streakDaysOver35
+    mutate(streakDaysOver35 = ifelse(daysOver35, row_number(), row_number()-1))
+#format a table to have each streak of days over 35 with relevant stats
+meanStreakOver35_year <- NOAA_data %>% 
+  filter(daysOver35) %>% 
+  drop_na(TMAX) %>% 
+  select(DATE, Month, Year, TMAX, streakDaysOver35, daysOver35) %>% 
+  group_by(IDstreakDaysOver35) %>% 
+  summarise(
+    startDate = min(DATE),
+    startYear = min(Year),
+    startMonth = min(Month),
+    maxDaysOver35 = max(streakDaysOver35),
+  ) %>% 
+  #get mean streak days for each start year
+  group_by(startYear) %>% 
+  summarise(meanStreakLength = mean(maxDaysOver35))
+meanStreakOver35_year %>% 
+  ggplot(aes(startYear, meanStreakLength)) +
+  geom_point() +
+  geom_smooth(method="lm") +
+  dark_theme_bw() +
+  ggtitle("mean number of days over 35 in a row each year at Perth Airport") +
+  ylab("mean number of days over 35") +
+  xlab("Year streak started")
+broom::tidy(summary(lm(meanStreakLength ~ startYear, data = meanStreakOver35_year)))
 ```
 
 
