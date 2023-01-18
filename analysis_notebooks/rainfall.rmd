@@ -21,10 +21,12 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 Import data and add some useful columns to our rain dataframe. This includes a boolean for whether it rained. Really just allows me to have more comprehensible code and saves me adding an extra label to my ggplots.
 
 ```{r}
+#import libraries we want
 suppressMessages(library(data.table))
 suppressMessages(library(tidyverse))
 suppressMessages(library(ggdark))
 suppressMessages(library(patchwork))
+#read data
 NOAA_data <- fread("../data/3184544.csv")
 #filter for usability
 #turns out the data attributes are useless lol
@@ -49,7 +51,9 @@ We should take a quick look at how rainfall and temperature are distributed.
 We can see that Precipitation is broadly exponentially distributed and that a vast majority of days have none to very little rain. A second graph shows that the pattern holds when 0 rain days are removed.
 
 ```{r}
+#we can use hist() with custom breaks to get a good feel for data shape here
 hist(NOAA_data$PRCP, breaks = 50)
+#same thing, but remove no rain days
 hist(pull(filter(NOAA_data, PRCP != 0), PRCP), breaks = 50)
 ```
 
@@ -57,14 +61,17 @@ Often, taking mean values of non normal data will result in data that tends to b
 
 ```{r}
 NOAA_data %>% 
-  group_by(Month_name, Year) %>% 
-  summarise(meanRainfall = mean(PRCP, na.rm = T)) %>% 
-  ggplot(aes(meanRainfall, after_stat(density))) +
-  geom_histogram() +
-  geom_density() +
-  facet_wrap(vars(Month_name), scales="free") +
-  dark_theme_bw() +
-  ggtitle("Histograms of mean rainfall per year for each month")
+    #get mean rainfall for month,year pairs
+    group_by(Month_name, Year) %>% 
+    summarise(meanRainfall = mean(PRCP, na.rm = T)) %>% 
+    #plot
+    ggplot(aes(meanRainfall, after_stat(density))) +
+    geom_histogram() +
+    geom_density() +
+    #use facet_wrap to split plot by month
+    facet_wrap(vars(Month_name), scales="free") +
+    dark_theme_bw() +
+    ggtitle("Histograms of mean rainfall per year for each month")
 ```
 
 ## Should you plan to go outside? Percent chance of any rain for Perth Airport
@@ -74,20 +81,28 @@ Probably the most striking feature of rain in Perth is just how seasonal it is. 
 While summers are incredibly hot, and the UV index is dangerous, summer is a great time to plan outdoor activities that would be otherwise ruined by rain. In contrast, expect the opposite in winter.
 
 ```{r}
+#here we want a table where:
+#each row = a day of the year
+#and we want the probability of rainfall for that day
 rainy_days <- NOAA_data %>% 
 	group_by(Month, Day) %>% 
 	summarise(
 	  number_of_rainy_days = sum(did_rain), days_observed = n()
 	) %>% 
+    #calculate proportion rainfall for a given day
 	mutate(proportion_rained = number_of_rainy_days/days_observed)
 
+#we add an index so we can count the days
 rainy_days$index <- 1:length(rainy_days$Day)
+#we add custom date strings for displaying on xlabel
 rainy_days <- rainy_days %>% 
   mutate(date_str = str_c(Day, Month, sep = "/"))
+#and custom breaks for aesthetically showing these dates
 custom_breaks = c(
 	1,32,32+29,32+29+31,92+30,153,153+30,214,245,275,306,336,366
 )
 rainy_days %>% 
+    #multiply by 100 to get percentage
 	ggplot(aes(index, proportion_rained*100)) +
 	geom_point() +
 	geom_smooth(span=0.5) +
@@ -110,17 +125,19 @@ rainfall_totals_yearly <- NOAA_data %>%
   group_by(Year) %>% summarise(total.Yearly.Rainfall = sum(PRCP)) 
 
 rainfall_totals_yearly %>% 
-  ggplot(aes(Year, total.Yearly.Rainfall)) +
-  geom_point() +
-  geom_smooth(method="lm") +
-  #use expand in scale param to remove annoying scale padding
-  scale_x_continuous(breaks = c(1945,1960,1980,2000,2020), expand = c(0.01,0.01)) +
-  scale_y_continuous(
-    expand = c(0.01,0.01), 
-    limits = c(0,max(rainfall_totals_yearly$total.Yearly.Rainfall))
-  ) +
-  ggtitle("Total yearly rainfall for Perth Airport (1945 to 2022)") +
-  dark_theme_classic()
+    ggplot(aes(Year, total.Yearly.Rainfall)) +
+    geom_point() +
+    geom_smooth(method="lm") +
+    #use expand in scale param to remove annoying scale padding
+    scale_x_continuous(breaks = c(1945,1960,1980,2000,2020), expand = c(0.01,0.01)) +
+    #we use the below to remove some whitespace on this plot
+    scale_y_continuous(
+        expand = c(0.01,0.01), 
+        limits = c(0,max(rainfall_totals_yearly$total.Yearly.Rainfall))
+    ) +
+    ggtitle("Total yearly rainfall for Perth Airport (1945 to 2022)") +
+    ylab("total yearly rainfall (mm)") +
+    dark_theme_classic()
 ```
 
 To get some specific numbers on this, we can run a linear regression and consider the intercept and slope. This will produce the same result as the line through the graph above, as `ggplot::geom_smooth(method="lm")` is using the same function as below (`lm()`).
@@ -128,8 +145,11 @@ To get some specific numbers on this, we can run a linear regression and conside
 ```{r}
 #to use our intercept we set 1944 to be "year zero"
 base_year = 1944
+#add a variable that uses 1944 as the base year
 rainfall_totals_yearly <- rainfall_totals_yearly %>% mutate(Year_zeroed = Year-base_year)
+#make a statistical model
 rainfall_model_lm <- lm("total.Yearly.Rainfall ~ Year_zeroed" , data = rainfall_totals_yearly)
+#print coefficients as a table
 broom::tidy(summary(rainfall_model_lm))
 ```
 
@@ -138,19 +158,24 @@ We can see that in 1944, the average rainfall is 866mm (i.e. the intercept value
 Here is a table showing some predicted rainfall values compared to actual totals, and then extended into the future. We can see if trends continued then our model predicts that rainfall would dwindle to zero. Of course, we can't expect trends to continue, and extending a relationship outside the measured boundaries is always 
 
 ```{r}
+#some years we want to predict rainfall for
 Years = c(1950, 1970, 2020, 2040, 2080, 2100, 2200)
-df <- broom::tidy(predict(
-  rainfall_model_lm, list(
-    Year_zeroed=Years-base_year
-  )
-))
-df$Year <- Years
-df$Predicted_Rainfall <- df$x
-df <- merge(df, rainfall_totals_yearly %>% 
+#use predict() to make predictions for Years and stuff this into a table
+rainfallPredictionTable <- broom::tidy(
+    predict(rainfall_model_lm, list(Year_zeroed=Years-base_year))
+    )
+#rename Years to Year
+rainfallPredictionTable$Year <- Years
+#and rename x to a meaningful name
+rainfallPredictionTable$Predicted_Rainfall <- rainfallPredictionTable$x
+#merge with rainfall yearly totals
+rainfallPredictionTable <- merge(rainfallPredictionTable, rainfall_totals_yearly %>% 
   filter(Year %in% Years) %>% select(Year, total.Yearly.Rainfall) %>%
     rename(Actual_rainfall = total.Yearly.Rainfall),
   all.x = TRUE)
-df %>% 
+#we can then take the difference of the predicted and actual rainfall totals for years with that data included
+#and print the table to our notebook
+rainfallPredictionTable %>% 
   select(Year, Predicted_Rainfall, Actual_rainfall) %>% 
   mutate(Difference = Actual_rainfall - Predicted_Rainfall)
 ```
@@ -175,22 +200,30 @@ While the latter is more elegant, the former is easier to illustrate on a graph.
 We can see that rainfall totals are decreasing in winter, but appear to be steady or possibly increasing in summer (although we can't be certain of this as the p-values for the coefficients are not even nominally significance).
 
 ```{r, fig.align="center", fig.width=10, fig.height=15}
+#find min and max year
 min_year = NOAA_data$Year %>% min
 max_year = NOAA_data$Year %>% max
+#rainfall totals by Year and Month
 rainfall_totals <- NOAA_data %>% 
 	group_by(Year, Month) %>% 
 	summarise(total_rainfall = sum(PRCP))
-
+#now we make a series of plots
+#allmonths does scatter plots of rainfall vs day facetted by each month
 allmonths <- rainfall_totals %>% 
 	filter(Year != 1944) %>% 
 	ggplot(aes(Year, total_rainfall)) + 
+    #facet by month
 	facet_grid(cols=vars(Month)) +
 	geom_point(alpha = 0.5) +
+    #linear OLS for each month
 	geom_smooth(method="lm", colour = "red") +
 	scale_x_continuous(breaks = c(min_year+1, max_year-1)) +
 	ggtitle("Perth rainfall monthly totals for each month between 1945 and 2022") +
-  dark_theme_classic() +
+    dark_theme_classic() +
+    #we adjust labels to fit better here
 	theme(axis.text.x=element_text(angle=60,hjust=1))
+#winter and summer are the same plots but only for the summer and winter months,
+#for illustration
 winter <- rainfall_totals %>% 
 	filter(Year != 1944, Month %in% 6:8) %>% 
 	ggplot(aes(Year, total_rainfall)) + 
@@ -221,22 +254,30 @@ Interestingly, the *rate of change*, as expressed by the absolute magnitude of t
 We can also see the summer months have very little estimated change in their year to year rainfall totals. But there are tentative, although non-significant, indications of increasing rainfall.
 
 ```{r}
+#here we take linear models of total_rainfall ~ Year for each month
+#to do this we group by Month and use dplyr::group_modify to perform lm() group-wise
 models.year_vs_rainfall_per_month <- rainfall_totals %>% 
 	mutate(Year = Year - base_year) %>% 
 	group_by(Month) %>% 
+    #we use broom::tidy to stuff each month into a table that is 
+    #then smoothly returned as a df
 	group_modify(~ broom::tidy(lm(total_rainfall ~ Year, data = .)))
+#show the table after adding nominal and bonferroni filter variables
 models.year_vs_rainfall_per_month %>% 
   mutate(nominal_significant = p.value < 0.05) %>% 
   mutate(passes_bonferroni = p.value < 0.05/12)
+#plot the coefficients with SE lines for each month
 models.year_vs_rainfall_per_month %>% 
 	filter(term == "Year") %>% 
 	ggplot(aes(Month, estimate, ymin=estimate-std.error, ymax=estimate+std.error, colour = -log10(p.value))) + 
 	dark_theme_classic() +
 	geom_point() +
 	geom_pointrange() +
-  geom_hline(yintercept = 0, linetype = 'dashed', alpha = 0.8, colour = "red") +
+    #we add a line at zero to illustrate the positive and negative coefficients better
+    geom_hline(yintercept = 0, linetype = 'dashed', alpha = 0.8, colour = "red") +
 	ggtitle("Estimated change in average total monthly rainfall per year") +
 	ylab("estimated change rainfall (mm)") +
+    #custom label breaks to get month integers
 	scale_x_continuous(breaks = 1:12)
 ```
 
@@ -251,10 +292,14 @@ While using month as a factor avoids any assumptions about months being in a spe
 Instead, we can reparameterise our Month variable so that summer months have larger absolute values and winter months have smaller absolute values. We do this by subtracting the Month integer by 6 and taking the absolute value of this, leaving us with 7 unique values from 0 and 6.
 
 ```{r}
+#add year baselined at 1944 and Month integer centred on July
+#these help with the linear model
 rainfall_totals <- rainfall_totals %>% 
   mutate(Year_zeroed = Year - base_year) %>% 
   mutate(Month_reparam = abs(Month-6))
+#generate a linear model
 year.by.month.model <- lm(total_rainfall ~ Year_zeroed*Month_reparam, data=rainfall_totals)
+#and return coefficients as a table to the notebook
 broom::tidy(summary(year.by.month.model))
 ```
 
@@ -264,20 +309,27 @@ We can now run our model using rainfall totals for each month, year pair. The re
 
 Another apparent trend in Perth's weather pattern is that the period of peak rainfall is shifting to later in the year. Traditionally, June has been the month with the highest rainfall totals. But as we have seen above, June is experiencing a faster decline in rainfall with each year compared to any other month. This might lead us to think that another winter month might end up with greater rainfall in future years.
 
-To test this in a visual way, we can compare months against each other.
+To test this in a visual way, we can inspect the rainfall difference for each year between pairs of months.
 
 ```{r, fig.align="center", fig.width=10, fig.height=10}
+#we generate a table that:
+# 1. takes rainfall totals by year,month pairs
+# 2. pivots wider to get each month's total rainfall as a column variable
+# 3. subtract month variables from each other to get difference between months
 rainfall_totals_bigger_month <- rainfall_totals %>% 
-  select(Year, Month, total_rainfall) %>% 
-	pivot_wider(names_from = c(Month), values_from = total_rainfall) %>% 
-  mutate(
-    delta_6_5 = `6` - `5`,
-    delta_7_6 = `7` - `6`,
-    delta_8_7 = `8` - `7`,
-    delta_9_8 = `9` - `8`,
-  )
+    select(Year, Month, total_rainfall) %>% 
+    pivot_wider(names_from = c(Month), values_from = total_rainfall) %>% 
+    #do the subtraction here
+    mutate(
+        delta_6_5 = `6` - `5`,
+        delta_7_6 = `7` - `6`,
+        delta_8_7 = `8` - `7`,
+        delta_9_8 = `9` - `8`,
+    )
+#then we generate plots for each month in turn
 may <- rainfall_totals_bigger_month %>% 
   ggplot(aes(Year, delta_6_5)) + geom_point() +
+    #add a line at 0 i.e. no difference to highlight positive negative spread
 	geom_hline(yintercept = 0, linetype = 'dashed', alpha = 0.8, colour = "red") +
 	geom_smooth(method="glm") +
 	ggtitle("Difference in total rainfall in\nJune compared to May") +
@@ -317,43 +369,35 @@ august <- rainfall_totals_bigger_month %>%
 	ylim(-400,400) +
 	annotate("text", label = "September", x = 1980, y = 300, size = 8) +
 	annotate("text", label = "August", x = 1980, y = -300, size = 8)
+#use patchwork to layout the plots
 (may + june) / (july + august)
 ```
 
 
 
-# days without rain!
-
-```{r}
-NOAA_data %>% 
-    filter(Year == 2005) %>% 
-    ggplot(aes(DATE, PRCP)) +
-    geom_point() +
-    dark_theme_bw()
-```
-
-```{r}
-NOAA_data %>% 
-    filter(Year == 2005) %>% 
-    mutate(no_rain = (PRCP == 0)) %>% 
-    filter(PRCP ==0) %>% 
-    ggplot(aes(DATE, PRCP, colour = no_rain)) +
-    geom_point() +
-    dark_theme_bw()
-```
+# No-rain streaks
 
 Selective cumsum for days without rain 🌧? This works!
 
 Solution here inspired from [here](https://stackoverflow.com/questions/54463950/r-count-consecutive-days-with-condition):
 ```{r}
 NOAA_data <- NOAA_data %>% 
+    #we use data.table::rleid to get group IDs for each streak
     group_by(NoRainStreakID = rleid(PRCP)) %>% 
+    #we use dplyr::mutate and base::ifelse to calculate daysNoRain
     mutate(daysNoRain = ifelse(PRCP == 0, row_number(), row_number()-1))
+#we plot the summary of the daysNoRain variable for inspection, looks sane!
 NOAA_data$daysNoRain %>% summary
 ```
 
+When we plot the distribution of no rain streaks we can see that the no rain streaks are exponentially distributed. 
+
+The vast majority of no-rain streaks are short with a long tail of longer streaks.
+
 ```{r}
+#use ggplot for a histogram with density overlay
 NOAA_data %>% 
+    #we use after_stat to make geom_histogram use density for the y-axis
     ggplot(aes(daysNoRain, after_stat(density))) +
     geom_histogram(bins = 50) +
     geom_density() +
@@ -375,25 +419,6 @@ NOAA_data %>%
 ```
 
 ```{r}
-#quick plot of no rain streaks vs temperature
-#group by no rain grouping and take mean, maybe filter n>=3?
-#not a great plot really! Obvs going to be confounded by time of year here. Messy.
-NOAA_data %>% 
-    group_by(NoRainStreakID) %>% 
-    summarise(
-        meanTMAX = mean(TMAX, na.rm = T),
-        noRainDays = max(daysNoRain),
-        n = n(),
-    ) %>% drop_na() %>% 
-    filter(n >= 5) %>% 
-    ggplot(aes(noRainDays, meanTMAX)) +
-    geom_point() +
-    dark_theme_bw()
-    
-#TODO make this correlation but center days to july 1st i.e abs(day - july_1st)
-```
-
-```{r}
 #corr streak length vs TMAX
 #inherent bias in precision by number of days...
 #and same problem with time of year bias since heat cor with rainfall already
@@ -409,7 +434,9 @@ NOAA_data %>%
     ggplot(aes(length, meanTMAX, group = length)) +
     geom_boxplot() + #boxplot of meanTMAX for each integer length
     dark_theme_bw() +
-    ggtitle("")
+    ggtitle("boxplot of mean maximum temperature for each no-rain streak\nvs number of days without rain") +
+    ylab("mean maximum temperature") +
+    xlab("number of days without rain")
 ```
 
 ```{r}
