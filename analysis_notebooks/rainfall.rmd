@@ -342,12 +342,12 @@ NOAA_data %>%
     dark_theme_bw()
 ```
 
-Selective cumsum for days without rain 🌧️ ?
+Selective cumsum for days without rain 🌧? This works!
 
 Solution here inspired from [here](https://stackoverflow.com/questions/54463950/r-count-consecutive-days-with-condition):
 ```{r}
 NOAA_data <- NOAA_data %>% 
-    group_by(ID = rleid(PRCP)) %>% 
+    group_by(NoRainStreakID = rleid(PRCP)) %>% 
     mutate(daysNoRain = ifelse(PRCP == 0, row_number(), row_number()-1))
 NOAA_data$daysNoRain %>% summary
 ```
@@ -376,12 +376,109 @@ NOAA_data %>%
 
 ```{r}
 #quick plot of no rain streaks vs temperature
+#group by no rain grouping and take mean, maybe filter n>=3?
+#not a great plot really! Obvs going to be confounded by time of year here. Messy.
 NOAA_data %>% 
-    ggplot(aes(daysNoRain,TMAX)) +
+    group_by(NoRainStreakID) %>% 
+    summarise(
+        meanTMAX = mean(TMAX, na.rm = T),
+        noRainDays = max(daysNoRain),
+        n = n(),
+    ) %>% drop_na() %>% 
+    filter(n >= 5) %>% 
+    ggplot(aes(noRainDays, meanTMAX)) +
     geom_point() +
     dark_theme_bw()
+    
 #TODO make this correlation but center days to july 1st i.e abs(day - july_1st)
 ```
+
+```{r}
+#corr streak length vs TMAX
+#inherent bias in precision by number of days...
+#and same problem with time of year bias since heat cor with rainfall already
+NOAA_data %>% 
+    #group by rain streak ID
+    group_by(NoRainStreakID) %>% 
+    #get statistics by group
+    summarise(
+        n = n(),
+        length = max(daysNoRain),
+        meanTMAX = mean(TMAX, na.rm = T),
+    ) %>% drop_na() %>% #nan values where no TMAX recorded
+    ggplot(aes(length, meanTMAX, group = length)) +
+    geom_boxplot() + #boxplot of meanTMAX for each integer length
+    dark_theme_bw() +
+    ggtitle("")
+```
+
+```{r}
+#longer streaks in summer, illustrate
+#simplest is just groupby month and do boxplots
+NOAA_data %>% 
+    group_by(NoRainStreakID, Month=Month_name) %>% 
+    summarise(daysNoRain) %>% 
+    #because we are doing this by month we remove days over 30 as they bias towards March
+    # filter(daysNoRain <=29) %>% 
+    ggplot(aes(Month, daysNoRain, group = Month, fill = Month)) +
+    geom_boxplot() +
+    dark_theme_bw() +
+    #adjust xlabels to fit
+    theme(axis.text.x=element_text(angle=60,hjust=1)) +
+    ggtitle("Boxplot of daysWithoutRain streaks ")
+```
+
+Here, I have grouped no rain streaks by month (regardless of year) and have then plotted box plots of the number of days of each streak. This gives us a distribution of the no rain streak lengths for each month. We can see that winter months rarely have periods of no rain longer than a few days. 
+
+```{r}
+NOAA_data %>% 
+    #group by rain streak ID, we include Month_name here as a labelling variable
+    #Month_name here will mean we include the same streak multiple times if it spills over into the next month
+    group_by(NoRainStreakID, Month_name) %>% 
+    #get statistics by group
+    summarise(
+        n = n(),
+        length = max(daysNoRain),
+        meanTMAX = mean(TMAX, na.rm = T),
+    ) %>% 
+    group_by(Month=Month_name) %>%
+    summarise(length) %>% 
+    ggplot(aes(Month, length, group = Month, fill = Month)) +
+    geom_boxplot() +
+    dark_theme_bw() +
+    #adjust xlabels to fit
+    theme(axis.text.x=element_text(angle=60,hjust=1)) +
+    ggtitle("Boxplot of no rain streaks by month") +
+    ylab("Days without rain")
+```
+
+Oh boy. We can fairly easily group by Year, and streak ID to get the mean number of days each streak lasts for each year. Similar to rainfall over the years, we see a trend of increasing mean number of days with no rain in a row. Visually we can see this trend is linear. There is an outlier year in 2010 which corresponds to the very long streak of no rain over that year's summer (starting in November 2009).
+
+```{r}
+#streak by year are they getting longer?
+noRainStreakByYear <- NOAA_data %>% 
+    group_by(NoRainStreakID, Year) %>% 
+    #get statistics by group
+    summarise(
+        n = n(),
+        length = max(daysNoRain),
+        meanTMAX = mean(TMAX, na.rm = T),
+        meanRainfall = mean(PRCP),
+    ) %>% 
+    group_by(Year) %>%
+    summarise(
+        longest_streak = max(length),
+        mean_streak = mean(length)
+    ) 
+noRainStreakByYear %>% ggplot(aes(Year, mean_streak)) +
+    geom_point() +
+    geom_smooth(method="lm") +
+    dark_theme_bw() +
+    ggtitle("Mean number of days with no rain in a row for each year at Perth Airport")
+noRainStreakByYear.Model <- lm(mean_streak ~ Year, data = noRainStreakByYear)
+broom::tidy(summary(noRainStreakByYear.Model))
+```
+
 
 
 
