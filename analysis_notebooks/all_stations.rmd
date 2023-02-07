@@ -49,14 +49,14 @@ NOAA_other_stations_1 <- NOAA_other_stations_1_freedomUnits %>%
 NOAA_other_stations_2 <- fread("../data/3186197.csv") %>% 
   select(!c("DAPR","DATN","DATX","DWPR","MDPR","MDTN","MDTX"))
 
-NOAA_other_stations_all <- rbind(NOAA_other_stations_1,NOAA_other_stations_2)
+NOAA_all_stations <- rbind(NOAA_other_stations_1,NOAA_other_stations_2)
 PER_airport <- PER_airport %>% select(!c("TAVG","SNWD"))
-NOAA_other_stations_all <- rbind(NOAA_other_stations_all, PER_airport)
+NOAA_all_stations <- rbind(NOAA_all_stations, PER_airport)
 ```
 
 Add some convenience columns to the dataset, and sanity check rainfall between stations; they all look similar which is what we are expecting here.
 ```{r}
-NOAA_other_stations_all <- NOAA_other_stations_all %>% 
+NOAA_all_stations <- NOAA_all_stations %>% 
   mutate(
     Year = format(DATE, "%Y") %>% as.numeric(),
     Month = month(DATE),
@@ -66,7 +66,7 @@ NOAA_other_stations_all <- NOAA_other_stations_all %>%
     Month_name = month.name[Month] %>% fct_relevel(month.name)
   )
 
-NOAA_other_stations_all %>% 
+NOAA_all_stations %>% 
   group_by(NAME) %>% 
   summarise(
     mean_rainfall = mean(PRCP, na.rm = T),
@@ -81,9 +81,28 @@ The data is incomplete in a number of ways:
 1. While the full set of dates runs between 1901-2022. No station has data for the entire period
 2. Stations lack some data for periods when they were active.
 
+We can explore this a bit with R. First, we are interested in missing data in temperature and rainfall data.
+
+There are only a few thousand missing rainfall records, but 84754 rows of missing data for TMIN and TMAX. This is `r (84754/264657)*100`% of the rows! This is because there are large gaps in temperature records while rainfall records have continued for the same period.
+
 ```{r}
-NOAA_other_stations_all %>% summary
+NOAA_all_stations %>% dim
+NOAA_all_stations %>% count(is.na(TMAX))
+NOAA_all_stations %>% count(is.na(TMIN))
+NOAA_all_stations %>% count(is.na(PRCP))
 ```
+
+We can inspect the percent missing per station. Some stations are missing over 80% of records, while several stations have very complete TMAX records while rainfall was recorded.
+
+```{r}
+NOAA_all_stations %>% 
+  group_by(NAME) %>% 
+  count(isna_TMAX=!is.na(TMAX)) %>% 
+  pivot_wider(NAME, values_from = n, names_from = isna_TMAX) %>% 
+  mutate(percentage_missing = (`FALSE`/(`FALSE`+`TRUE`))*100) %>% 
+  arrange(desc(percentage_missing))
+```
+
 
 ### periods with recorded data for each station
 
@@ -94,7 +113,7 @@ What about specific for each kind of data?
 For where data is available, we have complete records of rainfall. But temperature has large gaps for several stations.
 
 ```{r, fig.width=12, fig.height=12}
-dates_covered_by_stations <- NOAA_other_stations_all %>% 
+dates_covered_by_stations <- NOAA_all_stations %>% 
   group_by(NAME) %>% 
   summarise(
     minDate = min(DATE),
@@ -108,7 +127,7 @@ dates_covered <- dates_covered_by_stations %>%
   xlab("Station Name") + ylab("Date range (Years)") +
   ggtitle("Date range available for each station")
 
-dates_covered_by_variable <- NOAA_other_stations_all %>% 
+dates_covered_by_variable <- NOAA_all_stations %>% 
   pivot_longer(c(TMAX,TMIN,PRCP), names_to = "measurement") %>%
   # filter(NAME == "ROTTNEST ISLAND LIGHTHOUSE, AS") %>% 
   ggplot(aes(measurement, DATE, colour=!is.na(value))) +
@@ -123,7 +142,7 @@ dates_covered + dates_covered_by_variable
 We can do some quick checks using the non-filtered data. But we will need to use filtered data to ensure robust modelling later.
 
 ```{r, fig.width=10}
-yearly_statistics <- NOAA_other_stations_all %>% 
+yearly_statistics <- NOAA_all_stations %>% 
   group_by(NAME, Year) %>% 
   summarise(
     meanRainfall = mean(PRCP, na.rm = T),
@@ -149,10 +168,7 @@ yearly_statistics %>%
   geom_smooth(method="lm", se = F) +
   dark_theme_bw() +
   ggtitle("total rainfall each year for Rottnest Island from both stations")
-```
-
-```{r}
-Rotto_yearly_statistics <- NOAA_other_stations_all %>% 
+Rotto_yearly_statistics <- NOAA_all_stations %>% 
   group_by(NAME, Year) %>%
   summarise(
     totalRainfall = sum(PRCP, na.rm = F),
@@ -164,9 +180,9 @@ Rotto_yearly_statistics_fewNa <- Rotto_yearly_statistics %>%
   filter(naRainfallCount < 10)
 
 Rotto_yearly_statistics %>% 
-  ggplot(aes(Year, totalRainfall, colour=naRainfallCount)) +
+  ggplot(aes(Year, totalRainfall)) +
   geom_point() +
-  # geom_smooth(method="lm") +
+  geom_smooth(method="lm") +
   dark_theme_bw()
 ```
 
