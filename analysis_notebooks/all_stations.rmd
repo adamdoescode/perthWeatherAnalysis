@@ -4,7 +4,7 @@ title: "Perth multiple station analysis"
 output:
   html_document:
     toc: yes
-    toc_depth: '2'
+    toc_depth: '4'
     toc_float:
       collapsed: no
     theme: darkly
