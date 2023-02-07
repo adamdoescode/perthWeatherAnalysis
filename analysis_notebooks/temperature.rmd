@@ -110,7 +110,7 @@ temperature.yearly.avg %>%
   ggtitle("Yearly average min and max temperatures for Perth Airport (1944-2022)")
 ```
 
-We can also inspect the relationship between Year and Temperature using linear regression. As we can see, there is a small but statistically robust increase in temperature each year. The model 
+We can also inspect the relationship between Year and Temperature using linear regression. As we can see, there is a small but statistically robust increase in temperature each year. The model also points towards there being a faster increase for maximum (0.0255 degrees celsius per year) than minimum temperatures (0.0182 degrees celsius per year).
 
 Interestingly since the maximum temperature is increasing faster than the minimum temperature, we can also see that the *range* of temperatures may be increasing as well. But a linear model is only nominally significant, so we should be cautious interpreting this as an increase in the range of temperatures.
 
@@ -182,7 +182,7 @@ daysOver35 %>%  ggplot(aes(Year, proportion_over35)) +
 broom::tidy(summary(lm(proportion_over35 ~ Year, data = daysOver35)))
 ```
 
-While we might expect this might translate to more days in a row over 35, the trend for this is weak, although it is nominally significant.
+While we might expect this to translate to more days in a row over 35, the trend for this is weak, although it is nominally significant.
 
 ```{r}
 #get streaks of days over 35C
@@ -218,4 +218,6 @@ meanStreakOver35_year %>%
 broom::tidy(summary(lm(meanStreakLength ~ startYear, data = meanStreakOver35_year)))
 ```
 
+# summary
 
+The temperatures in Perth are increasing! Using Perth Airport data we can adequately describe a linear relationship between temperature and time. While more complex models might fit better, they are less parsimonious and thus it as inadvisable to use them here.
