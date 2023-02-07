@@ -87,9 +87,11 @@ There are only a few thousand missing rainfall records, but 84754 rows of missin
 
 ```{r}
 NOAA_all_stations %>% dim
-NOAA_all_stations %>% count(is.na(TMAX))
-NOAA_all_stations %>% count(is.na(TMIN))
-NOAA_all_stations %>% count(is.na(PRCP))
+cbind(
+  NOAA_all_stations %>% count(is.na(TMAX)),
+  NOAA_all_stations %>% count(is.na(TMIN)),
+  NOAA_all_stations %>% count(is.na(PRCP))
+)
 ```
 
 We can inspect the percent missing per station. Some stations are missing over 80% of records, while several stations have very complete TMAX records while rainfall was recorded.
@@ -141,6 +143,8 @@ dates_covered + dates_covered_by_variable
 
 We can do some quick checks using the non-filtered data. But we will need to use filtered data to ensure robust modelling later.
 
+We can get some statistics for each year and then quickly graph to see how these differ between stations. We can see that rainfall totals trend downwards each year for most stations but there are some exceptions.
+
 ```{r, fig.width=10}
 yearly_statistics <- NOAA_all_stations %>% 
   group_by(NAME, Year) %>% 
@@ -186,7 +190,7 @@ Rotto_yearly_statistics %>%
   dark_theme_bw()
 ```
 
-After accounting for the station name as an interaction term we can see that the resulting 
+After accounting for the station name as an interaction term we can see that the resulting change in rainfall per year is negative (with nominal significance), despite the estimation of a positive slope in the more recent data.
 
 ```{r}
 Rotto_yearly_statistics %>% 
@@ -200,7 +204,129 @@ model_rotto_rainfall_1 <- lm(totalRainfall ~ Year * NAME, data=Rotto_yearly_stat
 summary(model_rotto_rainfall_1)
 ```
 
+Since we have decent justification for both stations being similar, we can combine them into a single Rottnest station:
+```{r}
+NOAA_all_stations_clean <- NOAA_all_stations %>% 
+  mutate(
+    NAME = case_when(
+      NAME == "ROTTNEST ISLAND LIGHTHOUSE, AS" ~ "ROTTNEST",
+      NAME == "ROTTNEST ISLAND, AS" ~ "ROTTNEST",
+      .default = NAME
+    )
+  )
+```
 
+# using models to identify similarity and difference between stations
+
+We can account for Year and then hold it at a set value to estimate the differences in temperature and rainfall at different weather stations.
+
+Initially let's use the raw data:
+
+```{r}
+model_allStations_temp_prcp <- lm(
+  TMAX ~ PRCP + NAME + Year + as.factor(Month),
+  data = NOAA_all_stations_clean
+)
+summary(model_allStations_temp_prcp)
+```
+
+Use predict Year==1980?
+```{r}
+stationNames = NOAA_all_stations_clean$NAME %>% unique
+
+predict_TMAX <- function(station, model, Year, PRCP, Month) {
+  return(
+    predict(
+      model,
+      list(Year = Year,
+           PRCP = PRCP,
+           NAME = station,
+           Month= Month))
+    )
+}
+
+stationPredictions <- data.frame(station = stationNames)
+stationPredictions$Year <- 1980
+stationPredictions$PRCP <- 1
+stationPredictions$Month <- 1
+
+stationPredictions %>% 
+  rowwise() %>% 
+  mutate(Est_TMAX_Jul1980 = predict_TMAX(station, model_allStations_temp_prcp, Year, PRCP, Month))
+```
+
+# differences between stations
+
+Turns out the weather between stations is just really similar! There are likely some differences, but it is difficult to measure the relationship between location and temperature/rainfall with only 13 stations.
+
+```{r}
+weatherSummary_all_stations <- NOAA_all_stations_clean %>% 
+  group_by(NAME) %>% 
+  summarise(
+    meanRainfall = mean(PRCP, na.rm = TRUE),
+    meanTMAX = mean(TMAX, na.rm = TRUE),
+    meanTMIN = mean(TMIN, na.rm = TRUE),
+    maxTMAX = max(TMAX, na.rm = TRUE),
+    maxTMIN = max(TMIN, na.rm = TRUE),
+  ) %>% 
+  left_join(., NOAA_all_stations_clean %>% select(NAME, LATITUDE, LONGITUDE), by="NAME", multiple="first")
+
+weatherSummary_all_stations
+
+weatherSummary_all_stations %>% 
+  ggplot(aes(LONGITUDE, maxTMAX)) + geom_point() +
+  geom_smooth(method = "lm") +
+  dark_theme_bw() +
+  ggtitle("relationship between record high temperature and location")
+
+weatherSummary_all_stations %>% 
+  ggplot(aes(LONGITUDE, maxTMIN, colour = NAME == "ROTTNEST")) + geom_point() +
+  geom_smooth(method = "lm") +
+  dark_theme_bw() +
+  ggtitle("relationship between record low temperature and location")
+```
+
+# chance rainfall on a given day for each station?
+
+Risk of rain for each day of the year at each station.
+
+```{r, fig.width=10}
+prop_rained_all <- NOAA_all_stations_clean %>% 
+  drop_na(PRCP) %>% 
+  group_by(Month, NAME, Day) %>% 
+  summarise(
+	  number_of_rainy_days = sum(did_rain), days_observed = n()
+	) %>%
+  #change na to 0
+  mutate(number_of_rainy_days = ifelse(is.na(number_of_rainy_days),0,number_of_rainy_days)) %>% 
+  #calculate proportion rainfall for a given day
+	mutate(proportion_rained = number_of_rainy_days/days_observed) %>% 
+  #we add an index so we can count the days
+  group_by(NAME) %>% 
+  mutate(dayIndex = row_number(NAME))
+
+prop_rained_all %>% 
+  ggplot(aes(dayIndex, proportion_rained, colour = NAME)) +
+  geom_point(alpha=0.1) +
+  geom_smooth(se=FALSE) +
+  ggtitle("Risk of any rain for each day in the year") +
+  xlab("day (0 is January 1st)") +
+  ylab("Risk of rain") +
+  ylim(c(0,1))
+```
+
+```{r}
+prop_rained_all %>% 
+  group_by(NAME) %>% 
+  summarise(
+    max_proportion_rained = max(proportion_rained),
+    mean_proportion_rained = mean(proportion_rained)
+  ) %>% 
+  arrange(desc(max_proportion_rained)) %>% 
+  left_join(., NOAA_all_stations_clean %>% select(NAME, LATITUDE, LONGITUDE), by="NAME", multiple="first") %>% 
+  ggplot(aes(LATITUDE, LONGITUDE, colour = mean_proportion_rained)) +
+  geom_point()
+```
 
 
 
