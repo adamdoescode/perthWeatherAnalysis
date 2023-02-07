@@ -16,5 +16,134 @@ output:
 knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
 ```
 
+# preamble
+
+Since the NOAA dataset includes both rainfall and temperature we can briefly explore the relationship between these variables. 
+
+Note that here I remove the first two recorded months for 1944 since they have no temperature data.
+
+Import and setup Perth Airport weather data:
+```{r}
+#import libraries we want
+suppressMessages(library(data.table))
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggdark))
+suppressMessages(library(patchwork))
+#read data
+NOAA_data <- fread("../data/3184544.csv")
+#filter for usability
+#turns out the data attributes are useless lol
+NOAA_data <- NOAA_data %>% select(!ends_with("_ATTRIBUTES"))
+#add month and day cols for easier group-by summaries later
+NOAA_data <- NOAA_data %>% 
+  mutate(
+    Year = format(DATE, "%Y") %>% as.numeric(),
+    Month = month(DATE),
+    Day = format(DATE, "%d") %>% as.numeric(),
+    #bool for any rain
+    did_rain = PRCP > 0,
+    Month_name = month.name[Month] %>% fct_relevel(month.name)
+  ) %>% 
+  #remove months with no temp recordings
+  filter(!((Month == 5 | Month == 6) & (Year == 1944)))
+NOAA_data %>% head(2)
+```
+
+Summarising the rainfall and temperature by month and year, we can see that there is a non-linear relationship between temperature and rainfall. On this plot winter months are across the bottom of the plot while the summer months are concentrated into the top left. Log transformations of the variables here do not create a linear relationship.
+
+```{r}
+NOAA_temp_rainfall_monthly <- NOAA_data %>%
+  group_by(Year, Month) %>% 
+  summarise(
+    meanRainfall = mean(PRCP),
+    meanTMAX = mean(TMAX),
+    meanTMIN = mean(TMIN),
+  )
+NOAA_temp_rainfall_monthly %>% 
+  ggplot(aes(meanRainfall, meanTMAX)) + 
+  geom_point() + 
+  geom_smooth() +
+  geom_rug(alpha=0.1) +
+  dark_theme_bw() +
+  ggtitle("relationship between monthly mean maximum temperature and monthly mean rainfall") +
+  xlab("mean rainfall per month (mm)") +
+  ylab("mean maximum temperature per month (C)")
+```
+
+The rug plots in the above graph also illustrate that mean TMAX is unevenly distributed. Indeed we can see peaks around 20C and a smaller peak at 30C. Plotting each month separately results in approximately normally distributed data, indicating that our multimodal distribution over the year is related to the seasons.
+
+```{r, fig.width=12, fig.height=6}
+all_months_dist <- NOAA_temp_rainfall_monthly %>% 
+  ggplot(aes(meanTMAX)) + 
+  geom_histogram(bins = 50) +
+  dark_theme_bw() +
+  ggtitle("Distribution of mean maximum temperature for each month at Perth Airport") +
+  xlab("mean maximum temperature per month (C)")
+seperate_months_dist <- NOAA_temp_rainfall_monthly %>% 
+  ggplot(aes(meanTMAX)) + 
+  geom_histogram() +
+  facet_wrap(vars(Month), scales = "free") +
+  dark_theme_bw() +
+  ggtitle("Distribution of mean maximum temperature, each month seperately")
+all_months_dist + seperate_months_dist
+```
+
+# linear modelling
+
+## non summarised data
+
+The above indicates we could get a robust estimation of the relationship between TMAX and rainfall with a linear model where we include Month as a variable.
+
+Indeed, we can see that when we run a module on the data (not summarised) we get a robust Q-Q plot (indicating the assumption of normality holds, alhough with some inflation). The residuals are concerning as there are clear patterns indicating some irregularity in the data (i.e. the assumptions of residual normality doesn't hold). While there are some outliers ("residuals vs leverage" plot) there is little to be concerned with considering the sample size here is large.
+
+As we would expect, there is a significant negative relationship between rainfall (PRCP) and maximum temperature, which we can describe as a 1mm increase in rainfall relates to a decrease in temperature of 0.141 degrees celsius. Interestingly, we can see the model has defaulted to january as the compartor month. The coefficients clearly show how temperature (and rainfall) differ from january for other months.
+
+```{r}
+#add month as factor to NOAA data
+NOAA_data <- NOAA_data %>% mutate(Month_factor = as.factor(Month))
+#run model
+model_TMAX_rainfall_month <- lm(
+  TMAX ~ PRCP + Month_factor,
+  data = NOAA_data
+)
+summary(model_TMAX_rainfall_month)
+#get diagnostic plots
+plot(model_TMAX_rainfall_month)
+```
+
+We have previously established that rainfall and temperature trends are changing with each year. With increasing year, rainfall is decreasing, and temperature is increasing.
+
+By including year in this model we can inspect the relationship between rainfall and maximum temperature while holding the yearly trends constant. From the model below we can see that holding the yearly trend constant does not impact the estimate of the relationship between TMAX and rainfall. We can see in this model that the coefficient describing the effect of year is positive (i.e increasing year means increasing temperature).
+
+```{r}
+#run model
+model_TMAX_rainfall_month_year <- lm(
+  TMAX ~ PRCP + Month_factor + Year,
+  data = NOAA_data
+)
+summary(model_TMAX_rainfall_month_year)
+```
+
+## summarised model
+
+Using summarised data allows us to create a linear model that better fits the assumptions of linear regression. As is clear in the residuals diagnostic plot, groupings of residuals are each normally distributed (apparently from lack of structure in "blobs", groupings relate to the seasonal nature of temperature, x-axis). Considering the coefficients, we see that the estimate for the relationship between mean TMAX and mean rainfall broadly reflects that of the non-summarised data above. Here, we can say that a 1mm increase in mean rainfall relates to a decrease in mean temperature of 0.264 degrees celsius. Once again, Year positively correlates with mean TMAX, and our comparator month (July) shows a predicatable relationship with other months and temperature.
+
+```{r}
+NOAA_temp_rainfall_monthly <- NOAA_temp_rainfall_monthly %>% 
+  mutate(Month_factor = as.factor(Month))
+
+model_TMAX_rainfall_month_year_summary <- lm(
+  meanTMAX ~ meanRainfall + Month_factor + Year,
+  data = NOAA_temp_rainfall_monthly
+)
+summary(model_TMAX_rainfall_month_year_summary)
+plot(model_TMAX_rainfall_month_year_summary)
+```
+
+# summary
+
+In summary, temperature and rainfall exhibit a non-linear, inverse, relationship in Perth. As rainfall increases, temperature decreases. This is broadly due to the nature of rainfall occuring mostly in winter and very rarely in summer. Holding month and year variables constant establishes that this relationship still holds for temperature and rainfall. Using mean temperature and mean rainfall per month and per year allows us to build a linear model that satisfies the assumptions of linear regression, allowing us to be more confident in the results.
+
+
 
 
