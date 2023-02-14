@@ -1,0 +1,196 @@
+
+# comparison of summer 2023 with previous years
+
+---
+title: "Perth rainfall analysis"
+output:
+  html_document:
+    toc: yes
+    toc_depth: '4'
+    toc_float:
+      collapsed: no
+    theme: darkly
+    highlight: tango
+    df_print: paged
+    code_folding: hide
+---
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+## import and clean data
+
+Import data and add some useful columns to our rain dataframe. This includes a boolean for whether it rained. Really just allows me to have more comprehensible code and saves me adding an extra label to my ggplots.
+
+```{r}
+#import libraries we want
+suppressMessages(library(data.table))
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggdark))
+suppressMessages(library(patchwork))
+#read data
+NOAA_data <- fread("../data/3184544.csv")
+#filter for usability
+#turns out the data attributes are useless lol
+NOAA_data <- NOAA_data %>% select(!ends_with("_ATTRIBUTES"))
+#add month and day cols for easier group-by summaries later
+NOAA_data <- NOAA_data %>%
+    mutate(
+        Year = format(DATE, "%Y") %>% as.numeric(),
+        Month = month(DATE),
+        Day = format(DATE, "%d") %>% as.numeric(),
+        #bool for any rain
+        did_rain = PRCP > 0,
+        Month_name = month.name[Month] %>% fct_relevel(month.name)
+    )
+NOAA_data %>% head(2)
+```
+
+Read in BOM data for jan and feb 2023 (as of 14th Feb 2023):
+
+The downloaded csv files contain unusual byte codes that are breaking `fread` and `read.csv`. They are in the header, so I can bypass these by manually adding the header in.
+
+```{r}
+BOMheaderCols <- c(
+    "Date",
+    "Minimum temperature (C)",
+    "Maximum temperature (C)",
+    "Rainfall (mm)",
+    "Evaporation (mm)",
+    "Sunshine (hours)",
+    "Direction of maximum wind gust ",
+    "Speed of maximum wind gust (km/h)",
+    "Time of maximum wind gust",
+    "9am Temperature (C)",
+    "9am relative humidity (%)",
+    "9am cloud amount (oktas)",
+    "9am wind direction",
+    "9am wind speed (km/h)",
+    "9am MSL pressure (hPa)",
+    "3pm Temperature (C)",
+    "3pm relative humidity (%)",
+    "3pm cloud amount (oktas)",
+    "3pm wind direction",
+    "3pm wind speed (km/h)",
+    "3pm MSL pressure (hPa)"
+)
+#read in
+dec2022 <-
+    fread("../data/IDCJDW6110.202212.csv",
+          encoding = "UTF-8",
+          skip = 7)
+jan2023 <-
+    fread("../data/IDCJDW6110.202301.csv",
+          encoding = "UTF-8",
+          skip = 7)
+feb2023 <-
+    fread("../data/IDCJDW6110.202302.csv",
+          encoding = "UTF-8",
+          skip = 7)
+#drop extra column
+dec2022 <- dec2022 %>% select(!"V1")
+jan2023 <- jan2023 %>% select(!"V1")
+feb2023 <- feb2023 %>% select(!"V1")
+colnames(dec2022) <- BOMheaderCols
+colnames(jan2023) <- BOMheaderCols
+colnames(feb2023) <- BOMheaderCols
+#combine
+summer2023 <- rbind(dec2022, jan2023, feb2023)
+#rename temp and rainfall cols to match NOAA
+summer2023 <- summer2023 %>%
+    drop_na() %>%
+    rename(TMIN = `Minimum temperature (C)`,
+           TMAX = `Maximum temperature (C)`,
+           PRCP = `Rainfall (mm)`) %>%
+    #add in convenience columns
+    mutate(
+        Year = format(Date, "%Y") %>% as.numeric(),
+        Month = month(Date),
+        Day = format(Date, "%d") %>% as.numeric(),
+        #bool for any rain
+        did_rain = PRCP > 0,
+        Month_name = month.name[Month] %>% fct_relevel(month.name),
+        #we can use row_number to get "days since dec 1st" which we call "daysOfSummer"
+        daysOfSummer = row_number()
+    )
+summer2023 %>% head(2)
+```
+
+```{r, fig.width=9, fig.height=5}
+#get summer 2022 data from NOAA table
+summer2022 <- NOAA_data %>% 
+    filter(
+        (Year == 2022 & (Month == 1 | Month == 2)) | (Year == 2021 & Month == 12)
+    ) %>% 
+    mutate(daysOfSummer = row_number())
+#combine the two summers because it is easier...
+#add identifer tag to each summer
+summer2022$tag <- "summer2022"
+summer2023$tag <- "summer2023"
+#select and rbind
+summersDF <- rbind(
+    summer2022 %>% select(tag, daysOfSummer, Year, Month, Day, Month_name, PRCP, TMIN, TMAX),
+    summer2023 %>% select(tag, daysOfSummer, Year, Month, Day, Month_name, PRCP, TMIN, TMAX)
+)
+scatterSummer <- summersDF %>% 
+    ggplot(aes(daysOfSummer, TMAX, colour = tag)) +
+    geom_point(alpha=0.5) +
+    geom_smooth(se=F) +
+    # ggtitle("Maximum daily temperature at Perth Airport\nin summer '22 and '23") +
+    theme_classic() +
+    theme(legend.position="none") +
+    xlab("days since dec 1st")
+set.seed(9001)
+boxplotSummer <- summersDF %>% 
+    ggplot(aes(tag, TMAX, fill = tag)) +
+    geom_jitter(width = 0.1, aes(colour = tag)) +
+    geom_boxplot() +
+    theme_classic() +
+    xlab("") + ylab("")
+summerFig <- scatterSummer + boxplotSummer
+summerFig + plot_annotation(
+        title = "Maximum daily temperature at Perth Airport in summer '22 and '23"
+    )
+ggsave("../images/summer23vs22.png")
+```
+
+```{r}
+#hist
+summersDF %>% 
+    filter(Month == 1) %>% 
+    ggplot(aes(TMAX, colour = tag)) +
+    geom_density()
+```
+```{r}
+
+```
+
+
+
+Last two summers vs all past summers
+
+```{r}
+ghostsOfSummersPast <- NOAA_data %>% 
+    filter(Year < 2021) %>% 
+    filter(Month %in% c(1,2,12))
+#add identifer tag to each summer
+ghostsOfSummersPast$tag <- "allPreviousSummers"
+ghostsOfSummersPast <- ghostsOfSummersPast %>% 
+    mutate(daysOfSummer = row_number()) %>% 
+    select(tag, daysOfSummer, Year, Month, Day, Month_name, PRCP, TMIN, TMAX)
+#select and rbind
+summersDF <- rbind(
+    summersDF,
+    ghostsOfSummersPast
+)
+set.seed(9001)
+summersDF %>% 
+    ggplot(aes(tag, TMAX, fill = tag)) +
+    geom_jitter(width = 0.1, alpha=0.2, aes(colour = tag)) +
+    geom_boxplot() +
+    theme_classic() +
+    ggtitle("Distribution of maximum daily temperature for summer at Perth Airport")
+```
+
+
+
